@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Lab4 - Schedule IS</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; margin: 18px; background:#f7f7fb; }
+    h2 { margin:0 0 12px 0; }
+    form { margin:12px 0; display:flex; gap:8px; flex-wrap:wrap; }
+    input, select, button { padding:6px; border-radius:4px; border:1px solid #ccc; }
+    table { width:100%; border-collapse:collapse; background:white; margin-top:12px; }
+    th, td { border:1px solid #ddd; padding:8px; text-align:left; }
+    th { background:#f0f0f0; }
+    .danger { color:crimson; font-weight:bold; }
+    .card { background:white; border:1px solid #ddd; border-radius:6px; padding:8px; margin:6px 0; }
+  </style>
+</head> 
+<body>
+  <h2>Schedule IS (Lab 4) — JC Anonuevo</h2>
+
+  <!-- Form -->
+  <form id="addForm" onsubmit="return false;">
+    <input id="code" placeholder="Code (e.g. CS106)" required>
+    <input id="title" placeholder="Title" required>
+    <select id="day">
+      <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+      <option>Thursday</option><option>Friday</option><option>Saturday</option>
+    </select>
+    <input id="time" type="time" required>
+    <button id="addBtn">Add</button>
+    <button id="updateBtn">Update</button>
+  </form>
+
+  <!-- Controls -->
+  <div>
+    <input id="search" placeholder="Search code/title/day">
+    <select id="filterDay">
+      <option value="">--Filter by day--</option>
+      <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+      <option>Thursday</option><option>Friday</option><option>Saturday</option>
+    </select>
+    <button id="filterBtn">Filter</button>
+    <button id="sortBtn">Sort (toggle code/time)</button>
+    <button id="resetBtn">Reset</button>
+    <button id="toggleViewBtn">Toggle Table/Card</button>
+  </div>
+
+  <!-- Rendered list -->
+  <div id="list"></div>
+
+  <!-- Summary -->
+  <div id="summary"></div>
+
+<script>
+// Utility: find overlapping classes
+function getOverlappingCodes(classes) {
+  const overlaps = new Set();
+  for (let i = 0; i < classes.length; i++) {
+    for (let j = i + 1; j < classes.length; j++) {
+      if (classes[i].day === classes[j].day && classes[i].time === classes[j].time) {
+        overlaps.add(classes[i].code);
+        overlaps.add(classes[j].code);
+      }
+    }
+  }
+  return overlaps;
+}
+// === JavaScript inside single file ===
+
+// Data store
+let classes = [
+  {code:"CS104",title:"Data Structures and Analysis",day:"Tuesday",time:"09:00"},
+  {code:"CS124",title:"Discrete Structure",day:"Friday",time:"13:00"},
+  {code:"MATHEd14",title:"Linear Algebra",day:"Friday",time:"09:00"},
+  {code:"CS108",title:"Object Oriented Programming",day:"Wednesday",time:"17:30"},
+  {code:"CS106",title:"Applications Development and Emerging Technologies",day:"Monday",time:"09:00"}
+];
+let viewMode = "table";
+
+// Student object
+function Student(name, id) {
+  this.name = name;
+  this.id = id;
+  this.enrolledClasses = [];
+}
+Student.prototype.addClass = function(cls) {
+  const conflict = this.enrolledClasses.find(c => c.day === cls.day && c.time === cls.time);
+  if (conflict) {
+    alert(`Conflict with ${conflict.code} at ${conflict.time}`);
+    return;
+  }
+  this.enrolledClasses.push(cls);
+  console.log(`Enrolled ${cls.code}`);
+};
+Student.prototype.listClasses = function() {
+  return this.enrolledClasses.map(c => `${c.code} (${c.day} ${c.time})`).join("\\n") || "No classes yet.";
+};
+
+const student = new Student("Juan Dela Cruz","S123");
+
+// Utility: highlight class currently in progress
+function isClassInProgress(classTime, classDay) {
+  const now = new Date();
+  const currentDay = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][now.getDay()];
+  if (classDay !== currentDay) return false;
+  const [classHour, classMinute] = classTime.split(":").map(Number);
+  const classStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), classHour, classMinute);
+  // Assume class duration is 1 hour
+  const classEnd = new Date(classStart.getTime() + 60*60*1000);
+  return now >= classStart && now <= classEnd;
+}
+
+// Render
+function renderList(data=classes) {
+  const container = document.getElementById("list");
+  container.innerHTML = "";
+
+  const overlappingCodes = getOverlappingCodes(classes);
+  if (viewMode === "table") {
+    const table = document.createElement("table");
+    table.innerHTML = "<tr><th>Code</th><th>Title</th><th>Day</th><th>Time</th><th>Actions</th></tr>";
+    data.forEach(c => {
+      const tr = document.createElement("tr");
+      // Highlight if in progress or overlapping
+      if (isClassInProgress(c.time, c.day) || overlappingCodes.has(c.code)) tr.classList.add("danger");
+      tr.innerHTML = `
+        <td>${c.code}</td><td>${c.title}</td><td>${c.day}</td><td>${c.time}</td>
+        <td>
+          <button onclick=\"editRecord('${c.code}')\">Edit</button>
+          <button onclick=\"deleteRecordPrompt('${c.code}')\">Delete</button>
+        </td>`;
+      table.appendChild(tr);
+    });
+    // Add total classes row at the bottom
+    const totalRow = document.createElement("tr");
+    totalRow.innerHTML = `<td colspan='5' style='text-align:right;'><b>Total classes: ${classes.length}</b></td>`;
+    table.appendChild(totalRow);
+    container.appendChild(table);
+  } else {
+    data.forEach(c => {
+      const div = document.createElement("div");
+      div.className = "card";
+      // Highlight if in progress or overlapping
+      if (isClassInProgress(c.time, c.day) || overlappingCodes.has(c.code)) div.classList.add("danger");
+      div.innerHTML = `<b>${c.code}</b> - ${c.title} (${c.day} ${c.time})`;
+      container.appendChild(div);
+    });
+  }
+  renderSummary();
+}
+
+function renderSummary() {
+  const s = document.getElementById("summary");
+  s.innerHTML = "";
+}
+
+// CRUD
+function addRecord(obj) {
+  if (classes.find(c=>c.code===obj.code)) { alert("Duplicate code"); return; }
+  classes.push(obj); console.log("ADD",obj); renderList();
+}
+function updateRecord(code,newObj) {
+  const i = classes.findIndex(c=>c.code===code);
+  if (i===-1) return;
+  classes[i] = newObj; console.log("UPDATE",newObj); renderList();
+}
+function deleteRecord(code) {
+  classes = classes.filter(c=>c.code!==code); console.log("DELETE",code); renderList();
+}
+
+function deleteRecordPrompt(code) {
+  showConfirmDialog("Do you really want to delete this class?", () => deleteRecord(code));
+}
+function editRecord(code) {
+  const c = classes.find(c=>c.code===code);
+  if (!c) return;
+  document.getElementById("code").value = c.code;
+  document.getElementById("title").value = c.title;
+  document.getElementById("day").value = c.day;
+  document.getElementById("time").value = c.time;
+  document.getElementById("code").dataset.original = c.code;
+}
+
+// Events
+document.getElementById("addBtn").onclick = () => {
+  const obj = {
+    code: code.value.trim(),
+    title: title.value.trim(),
+    day: day.value,
+    time: time.value
+  };
+  addRecord(obj);
+};
+document.getElementById("updateBtn").onclick = () => {
+  const orig = code.dataset.original;
+  if (!orig) { alert("No record selected"); return; }
+  updateRecord(orig, {code: code.value.trim(),title: title.value.trim(),day: day.value,time: time.value});
+  delete code.dataset.original;
+};
+document.getElementById("filterBtn").onclick = () => {
+  const daySel = document.getElementById("filterDay").value;
+  renderList(daySel ? classes.filter(c=>c.day===daySel) : classes);
+};
+let sortToggle=0;
+document.getElementById("sortBtn").onclick=()=>{
+  sortToggle++;
+  if (sortToggle%2===0) {
+    // Sort by code
+    classes.sort((a,b)=>a.code.localeCompare(b.code));
+  } else {
+    // Sort by day (Monday to Saturday) then time
+    const dayOrder = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    classes.sort((a,b)=>{
+      const dayDiff = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+      if (dayDiff !== 0) return dayDiff;
+      return a.time.localeCompare(b.time);
+    });
+  }
+  renderList();
+};
+document.getElementById("resetBtn").onclick=()=>{
+  showConfirmDialog("Do you really want to reset the table?", () => {
+    classes = [];
+    renderList();
+  });
+};
+document.getElementById("toggleViewBtn").onclick=()=>{viewMode=viewMode==="table"?"card":"table"; renderList();};
+document.getElementById("search").oninput=(e)=>{
+  const q=e.target.value.toLowerCase();
+  renderList(classes.filter(c=>
+    c.code.toLowerCase().includes(q) ||
+    c.title.toLowerCase().includes(q) ||
+    c.day.toLowerCase().includes(q)
+  ));
+};
+
+// Confirm dialog utility
+function showConfirmDialog(message, onYes) {
+  // Remove any existing dialog
+  const old = document.getElementById("confirmDialog");
+  if (old) old.remove();
+  const dialog = document.createElement("div");
+  dialog.id = "confirmDialog";
+  dialog.style.position = "fixed";
+  dialog.style.top = "0";
+  dialog.style.left = "0";
+  dialog.style.width = "100vw";
+  dialog.style.height = "100vh";
+  dialog.style.background = "rgba(0,0,0,0.2)";
+  dialog.style.display = "flex";
+  dialog.style.alignItems = "center";
+  dialog.style.justifyContent = "center";
+  dialog.innerHTML = `<div style="background:white;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0002;text-align:center;">
+    <p style="margin-bottom:16px;">${message}</p>
+    <button id="yesBtn">Yes</button>
+    <button id="noBtn">No</button>
+  </div>`;
+  document.body.appendChild(dialog);
+  document.getElementById("yesBtn").onclick = () => {
+    dialog.remove();
+    onYes();
+  };
+  document.getElementById("noBtn").onclick = () => {
+    dialog.remove();
+  };
+}
+
+renderList();
+</script>
+</body>
+</html>
